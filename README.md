@@ -1,6 +1,6 @@
 # resp_api_task
 
-Información: para la bd, he utilizado sqlite, ya que se guarda en un ficher .db y es más rápido y cómodo para utilizar con Synfony.
+Información: para la bd, he utilizado sqlite, ya que se guarda en un ficher .db y es más rápido y cómodo para utilizar con Synfony. Para crear la bd, ejecutamos **php bin/console doctrine:database:create**. Una vez tenemos la bd, ejecutamos las migraciones con los siguientes comandos: **php bin/console doctrine:migrations:migrate** y **php bin/console doctrine:migrations:migrate**
 
 Para levantar la API, debemos tener instalado symfony en nuestro sistema entrar dentro de la carpeta del proyecto y ejecutar: **symfony server:start**
 
