@@ -9,27 +9,32 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
 use App\Entity\Task;
 use DateTime;
+use Doctrine\Common\Collections\Expr\Value;
 use Doctrine\Persistence\ManagerRegistry;
 use Laminas\Code\Generator\DocBlock\Tag;
+
+const file_database = '../bd.json';
 
 /**
  * @Route("/api", name="api_")
  */
 class TaskController extends AbstractController
 {
+
+    public $max_id = 0;
+
     /**
      * @Route("/tasks", name="get_all_tasks", methods={"GET"})
      */
-    public function get_all_tasks(ManagerRegistry $doctrine): JsonResponse
+    public function get_all_tasks(): JsonResponse
     {
-       $tasks = $doctrine
-            ->getRepository(Task::class)
-            ->findAll();
-
+        $this->exist_database();
+        $tasks = file_get_contents(file_database);
+        $array = json_decode($tasks);
         $data = [
             'status' => 'success',
             'code' => 200,
-            'tasks' => $tasks
+            'tasks' => $array
         ];
         return $this->json($data);
     }
@@ -37,19 +42,41 @@ class TaskController extends AbstractController
     /**
      * @Route("/task", name="task_new", methods={"POST"})
      */
-    public function new(ManagerRegistry $doctrine, Request $request): Response
+    public function new(Request $request): Response
     {
-        $entityManager = $doctrine->getManager();
- 
+        $this->exist_database();
+
+        $tasks = file_get_contents(file_database);
+        $array = json_decode($tasks);
+
+        foreach ($array as $key => $value) {
+            if ($value->id > $this->max_id)
+                $this->max_id = $value->id;
+        }
+
+        if (trim(strtolower($request->request->get('done'))) != "true" && trim(strtolower($request->request->get('done'))) != "false") {
+            $data = [
+                'status' => 'error',
+                'code' => 404,
+                'message' => 'Done not is boolean value',
+            ];
+            return $this->json($data);
+        }
+
         $task = new Task();
+        $task->setId($this->max_id + 1);
         $task->setTitle($request->request->get('title'));
-        $task->setDone($request->request->get('done'));
+        if (trim(strtolower($request->request->get('done'))) == "true")
+            $task->setDone(true);
+        else
+            $task->setDone(false);
         $task->setCreatedData(new DateTime());
         $task->setUpdatedData(new DateTime());
- 
-        $entityManager->persist($task);
-        $entityManager->flush();
- 
+        $array[] = $task;
+
+        file_put_contents(file_database, json_encode($array));
+
+
         $data = [
             'status' => 'success',
             'code' => 200,
@@ -58,89 +85,116 @@ class TaskController extends AbstractController
         ];
         return $this->json($data);
     }
- 
+
     /**
      * @Route("/task/{id}", name="task_show", methods={"GET"})
      */
-    public function show(ManagerRegistry $doctrine, int $id): Response
+    public function show(int $id): Response
     {
-        $task = $doctrine
-            ->getRepository(Task::class)
-            ->find($id);
- 
-        if (!$task) {
-            $data = [
-                'status' => 'error',
-                'code' => 404,
-                'message' => 'No task found for id ' . $id
-            ];
-            return $this->json($data);
+        $this->exist_database();
+
+        $tasks = file_get_contents(file_database);
+        $array = json_decode($tasks);
+
+        foreach ($array as $key => $value) {
+            if ($value->id == $id) {
+                $data = [
+                    'status' => 'success',
+                    'code' => 200,
+                    'task' => $value
+                ];
+                return $this->json($data);
+            }
         }
-         
+
         $data = [
-            'status' => 'success',
-            'code' => 200,
-            'task' => $task
+            'status' => 'error',
+            'code' => 404,
+            'message' => 'No task found for id ' . $id
         ];
         return $this->json($data);
     }
- 
+
     /**
      * @Route("/task/{id}", name="task_edit", methods={"PUT"})
      */
-    public function edit(ManagerRegistry $doctrine, Request $request, int $id): Response
+    public function edit(Request $request, int $id): Response
     {
-        $entityManager = $doctrine->getManager();
-        $task = $entityManager->getRepository(Task::class)->find($id);
- 
-        if (!$task) {
-            $data = [
-                'status' => 'error',
-                'code' => 404,
-                'message' => 'No task found for id ' . $id
-            ];
-            return $this->json($data);
+        $this->exist_database();
+
+        $tasks = file_get_contents(file_database);
+        $array = json_decode($tasks);
+
+        foreach ($array as $key => $value) {
+            if ($value->id == $id) {
+
+                if (trim(strtolower($request->request->get('done'))) != "true" && trim(strtolower($request->request->get('done'))) != "false") {
+                    $data = [
+                        'status' => 'error',
+                        'code' => 404,
+                        'message' => 'Done not is boolean value',
+                    ];
+                    return $this->json($data);
+                }
+                $value->title = $request->request->get('title');
+                if (trim(strtolower($request->request->get('done'))) == "true")
+                    $value->done = true;
+                else
+                    $value->done = false;
+                $value->updated_data = new DateTime();
+                file_put_contents(file_database, json_encode($array));
+                $data = [
+                    'status' => 'success',
+                    'code' => 200,
+                    'message' => 'Task updated successfully',
+                    'task' => $value
+                ];
+                return $this->json($data);
+            }
         }
- 
-        $task->setTitle($request->request->get('title'));
-        $task->setDone($request->request->get('done'));
-        $task->setUpdatedData(new DateTime());
-        $entityManager->flush();
-         
+
         $data = [
-            'status' => 'success',
-            'code' => 200,
-            'message' => 'Task updated successfully',
-            'task' => $task
+            'status' => 'error',
+            'code' => 404,
+            'message' => 'No task found for id ' . $id
         ];
         return $this->json($data);
     }
- 
+
     /**
      * @Route("/task/{id}", name="task_delete", methods={"DELETE"})
      */
-    public function delete(ManagerRegistry $doctrine, int $id): Response
+    public function delete(int $id): Response
     {
-        $entityManager = $doctrine->getManager();
-        $task = $entityManager->getRepository(Task::class)->find($id);
- 
-        if (!$task) {
-            $data = [
-                'status' => 'error',
-                'code' => 404,
-                'message' => 'No task found for id ' . $id
-            ];
-            return $this->json($data);
+        $this->exist_database();
+
+        $tasks = file_get_contents(file_database);
+        $array = json_decode($tasks);
+
+        foreach ($array as $key => $value) {
+            if ($value->id == $id) {
+                unset($array[$key]);
+                file_put_contents(file_database, json_encode($array));
+                $data = [
+                    'status' => 'success',
+                    'code' => 200,
+                    'message' => 'Deleted a task successfully with id ' . $id
+                ];
+                return $this->json($data);
+            }
         }
- 
-        $entityManager->remove($task);
-        $entityManager->flush();
- 
+
         $data = [
-            'status' => 'success',
-            'code' => 200,
-            'message' => 'Deleted a task successfully with id ' . $id
+            'status' => 'error',
+            'code' => 404,
+            'message' => 'No task found for id ' . $id
         ];
         return $this->json($data);
+    }
+
+    private function exist_database()
+    {
+        if (!file_exists(file_database))
+            file_put_contents(file_database, '[]');
     }
 }
